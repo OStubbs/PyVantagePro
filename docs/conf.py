@@ -236,5 +236,5 @@ latex_elements = {
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'pyvantagepro', u'PyVantagePro Documentation',
-     [u'Salem Harrache', u'Lionel Darras'], 1)
+     [u'Salem Harrache', u'Lionel Darras', u'Oliver Stubbs'], 1)
 ]

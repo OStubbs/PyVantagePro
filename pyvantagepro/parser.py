@@ -65,7 +65,7 @@ class VantageProCRC(object):
         crc = 0
         
         # Previous one-liner wasn't great for readability
-        for byte in array(str('B'), bytes(self.data)):
+        for byte in array('B', bytes(self.data)):
             # Get the upper 8 bits
             upper_crc = crc >> 8
 

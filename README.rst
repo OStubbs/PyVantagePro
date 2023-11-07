@@ -20,6 +20,7 @@ Examples
     >>> from pyvantagepro import VantagePro2
     >>>
     >>> device = VantagePro2.from_url('tcp:host-ip:port')
+    >>> # device = VantagePro2.from_serial('COM1', 19200)
     >>> device.gettime()
     2012-06-13 16:44:56
     >>> data = device.get_current_data()
@@ -42,7 +43,7 @@ Features
 * Getting some information about the station, such as date and firmware version.
 * Various types of connections are supported
 * Comes with a command-line script
-* Compatible with Python 3.x
+* Compatible with Python 3.7 and above (tested in 3.11)
 
 
 Installation
