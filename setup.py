@@ -25,8 +25,7 @@ except:
     pass
 
 REQUIREMENTS = [
-    'pylink',
-    'progressbar-latest',
+    'pylink'
 ]
 
 if sys.version_info < (2, 7):
@@ -46,24 +45,22 @@ version = release.rstrip('dev')
 setup(
     name='PyVantagePro',
     version=version,
-    url='https://github.com/SalemHarrache/PyVantagePro',
+    url='https://github.com/OStubbs/PyVantagePro',
     license='GNU GPL v3',
-    description='Communication tools for the Davis VantagePro2 devices',
+    description='Communication tools for the Davis VantagePro2 devices. Forked from Lionel Darras.',
     long_description=README + '\n\n' + CHANGES,
     author='Salem Harrache',
     author_email='salem.harrache@gmail.com',
-    maintainer='Lionel Darras',
-    maintainer_email='Lionel.Darras@obs.ujf-grenoble.fr',
+    maintainer='Oliver Stubbs',
+    maintainer_email='contact@wiltshirerepairs.com',
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Science/Research',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.6',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.2',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
         'Topic :: Internet',
         'Topic :: Utilities',
         'Topic :: Software Development :: Libraries :: Python Modules'

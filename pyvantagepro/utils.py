@@ -107,7 +107,7 @@ def bytes_to_hex(byte):
         hexstr = str(binascii.hexlify(byte))
     data = []
     for i in range(0, len(hexstr), 2):
-        data.append("%s" % hexstr[i:i + 2].upper())
+        data.append(f"{hexstr[i:i + 2].upper()}")
     return ' '.join(data)
 
 
@@ -136,7 +136,10 @@ def bytes_to_binary(values):
         if values == 0:
             data = '00000000'
         else:
-            data = ''.join([byte_to_binary(b) for b in values])
+            if type(values) is int:
+                data = ''.join([byte_to_binary(values)])
+            else:
+                data = ''.join([byte_to_binary(b) for b in values])
     else:
         data = ''.join(byte_to_binary(ord(b)) for b in values)
     return data
@@ -165,7 +168,17 @@ def binary_to_int(buf, start=0, stop=None):
     '''
     return int(buf[::-1][start:(stop or len(buf))][::-1], 2)
 
-
+def list_to_int(item_list):
+    '''Convert list of type to list of int.'''
+    if type(item_list) is str:
+        item_list = list(item_list)
+    for i,x in enumerate(item_list, start=0):
+        try:
+            item_list[i] = int(x)
+        except (TypeError, ValueError):
+            pass
+    return item_list
+        
 def csv_to_dict(file_input, delimiter=','):
     '''Deserialize csv to list of dictionaries.'''
     delimiter = to_char(delimiter)

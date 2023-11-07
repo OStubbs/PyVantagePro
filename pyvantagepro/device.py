@@ -80,13 +80,15 @@ class VantagePro2(object):
         return cls(link)
 
     @classmethod
-    def from_serial(cls, tty, baud, timeout=10):
+    def from_serial(cls, port, baud_rate, timeout=10):
         ''' Get device from serial port.
 
-        :param url: A `PyLink` connection URL.
-        :param timeout: Set a read timeout value.
+        :param port: The path to the serial port.
+        :param baud_rate: The baud rate for the serial connection (e.g 19200).
+        :param timeout: The maximum time in seconds to wait for a response from the device.
         '''
-        link = SerialLink(tty, baud)
+        # Baud rate is typically 19200.
+        link = SerialLink(port, baud_rate)
         link.settimeout(timeout)
         return cls(link)
 
@@ -98,12 +100,12 @@ class VantagePro2(object):
         self.link.write(self.WAKE_STR)
         ack = self.link.read(len(wait_ack))
         if wait_ack == ack:
-            LOGGER.info("Check ACK: OK (%s)" % (repr(ack)))
+            LOGGER.info(f"Check ACK: OK ({repr(ack)})")
             return True
-        #Sometimes we have a 1byte shift from Vantage Pro and that's why wake up doesn't work anymore
-        #We just shift another 1byte to be aligned in the serial buffer again.
+        # Sometimes we have a 1byte shift from Vantage Pro and that's why wake up doesn't work anymore
+        # We just shift another 1byte to be aligned in the serial buffer again.
         self.link.read(1)
-        LOGGER.error("Check ACK: BAD (%s != %s)" % (repr(wait_ack), repr(ack)))
+        LOGGER.error(f"Check ACK: BAD ({repr(wait_ack)} != {repr(ack)})")
         raise NoDeviceException()
 
     @retry(tries=3, delay=0.5)
@@ -116,38 +118,38 @@ class VantagePro2(object):
          :param wait_ack: If `wait_ack` is not None, the function must check
             that acknowledgement is the one expected.
 
-         :param timeout: Define this timeout when reading ACK from link﻿.
+         :param timeout: Define this timeout when reading ACK from link.
          '''
         if is_bytes(data):
-            LOGGER.info("try send : %s" % bytes_to_hex(data))
+            LOGGER.info(f"try send : {bytes_to_hex(data)}")
             self.link.write(data)
         else:
-            LOGGER.info("try send : %s" % data)
-            self.link.write("%s\n" % data)
+            LOGGER.info(f"try send : {data}")
+            self.link.write(f"{data}\n")
         if wait_ack is None:
             return True
         ack = self.link.read(len(wait_ack), timeout=timeout)
         if wait_ack == ack:
-            LOGGER.info("Check ACK: OK (%s)" % (repr(ack)))
+            LOGGER.info(f"Check ACK: OK ({repr(ack)})")
             return True
-        LOGGER.error("Check ACK: BAD (%s != %s)" % (repr(wait_ack), repr(ack)))
+        LOGGER.error(f"Check ACK: BAD ({repr(wait_ack)} != {repr(ack)})")
         raise BadAckException()
 
     @retry(tries=3, delay=1)
     def read_from_eeprom(self, hex_address, size):
         '''Reads from EEPROM the `size` number of bytes starting at the
         `hex_address`. Results are given as hex strings.'''
-        self.link.write("EEBRD %s %.2d\n" % (hex_address, size))
+        self.link.write(f"EEBRD {hex_address} {size:02d}\n")
         ack = self.link.read(len(self.ACK))
         if self.ACK == ack:
-            LOGGER.info("Check ACK: OK (%s)" % (repr(ack)))
+            LOGGER.info(f"Check ACK: OK ({repr(ack)})")
             data = self.link.read(size + 2)  # 2 bytes for CRC
             if VantageProCRC(data).check():
                 return data[:-2]
             else:
                 raise BadCRCException()
         else:
-            msg = "Check ACK: BAD (%s != %s)" % (repr(self.ACK), repr(ack))
+            msg = f"Check ACK: BAD ({repr(self.ACK)} != {repr(ack)})"
             LOGGER.error(msg)
             raise BadAckException()
 
@@ -184,96 +186,85 @@ class VantagePro2(object):
         '''
         generator = self._get_archives_generator(start_date, stop_date)
         archives = ListDict()
-        dates = []
+        dates = set()
+        # Sets are a tad better for containments
         for item in generator:
             if item['Datetime'] not in dates:
                 archives.append(item)
-                dates.append(item['Datetime'])
+                dates.add(item['Datetime'])
         return archives.sorted_by('Datetime')
+    
+    def _process_page(self, page_number, start_date, stop_date):
+        """Processes a single page of the data dump."""
+
+        dump = self._read_dump_page(page_number)
+        raw_records = dump["Records"]
+        for start, end in zip(range(0, 260, 52), range(52, 261, 52)):
+            raw_record = raw_records[start:end]
+            record = self._parse_record(raw_record, start_date, stop_date)
+
+            if record:
+                yield record
+
+    def _parse_record(self, raw_record, start_date, stop_date):
+        """Parses a raw record, checks its validity, and returns it if it's within the date range."""
+        # Parse the record based on the device revision
+        record_parser = ArchiveDataParserRevB
+        record = record_parser(raw_record)
+
+        # Check record's date validity and range
+        r_time = record['Datetime']
+        if r_time is None:
+            LOGGER.error('Invalid record detected')
+            return None
+        if not (start_date < r_time <= stop_date):
+            LOGGER.info('Record is out of the requested datetime range')
+            return None
+
+        # Return the valid record
+        return record
 
     def _get_archives_generator(self, start_date=None, stop_date=None):
         '''Get archive records generator until `start_date` and `stop_date`.'''
         self.wake_up()
-        # 2001-01-01 01:01:01
-        start_date = start_date or datetime(2001, 1, 1, 1, 1, 1)
+        # Set default dates if none provided
+        start_date = start_date or datetime(2001, 1, 1)
         stop_date = stop_date or datetime.now()
-        # round start_date, with the archive period to the previous record
+
+        # Round down start_date to the nearest archive period
         period = self.archive_period
-        minutes = (start_date.minute % period)
-        start_date = start_date - timedelta(minutes=minutes)
+        start_date -= timedelta(minutes=start_date.minute % period)
+
+        # Send command to initiate data dump after start_date
         self.send("DMPAFT", self.ACK)
-        # I think that date_time_crc is incorrect...
-        self.link.write(pack_dmp_date_time(start_date))
-        # timeout must be at least 2 seconds
-        ack = self.link.read(len(self.ACK), timeout=2)
-        if ack != self.ACK:
-            raise BadAckException()
-        # Read dump header and get number of pages
-        header = DmpHeaderParser(self.link.read(6))
-        # Write ACK if crc is good. Else, send cancel.
+        packed_date = pack_dmp_date_time(start_date)
+        self.link.write(packed_date)
+
+        # Await acknowledgment with a 2-second timeout
+        # Shouldn't be any lower than 2 but unsure why
+        if self.link.read(len(self.ACK), timeout=2) != self.ACK:
+            raise BadAckException('No acknowledgment received for the data dump request.')
+
+        # Read and parse the dump header
+        header_data = self.link.read(6)
+        header = DmpHeaderParser(header_data)
         if header.crc_error:
             self.link.write(self.CANCEL)
-            raise BadCRCException()
-        else:
-            self.link.write(self.ACK)
-        LOGGER.info('Starting download %d dump pages' % header['Pages'])
-        finish = False
-        r_index = 0
-        for i in range(header['Pages']):
-            # Read one dump page
-            try:
-                dump = self._read_dump_page()
-            except (BadCRCException, BadDataException) as e:
-                LOGGER.error('Error: %s' % e)
-                finish = True
-                break
-            LOGGER.info('Dump page no %d ' % dump['Index'])
-            # Get the 5 raw records
-            raw_records = dump["Records"]
-            # loop through archive records
-            offsets = zip(range(0, 260, 52), range(52, 261, 52))
-            # offsets = [(0, 52), (52, 104), ... , (156, 208), (208, 260)]
-            for offset in offsets:
-                raw_record = raw_records[offset[0]:offset[1]]
-                if self.RevB:
-                    record = ArchiveDataParserRevB(raw_record)
-                else:
-                    msg = 'Do not support RevA data format'
-                    raise NotImplementedError(msg)
-                # verify that record has valid data, and store
-                r_time = record['Datetime']
-                if r_time is None:
-                    LOGGER.error('Invalid record detected')
-                    finish = True
-                    break
-                elif r_time <= stop_date:
-                    if start_date < r_time:
-                        not_in_range = False
-                        msg = "Record-%.4d - Datetime : %s" % (r_index, r_time)
-                        LOGGER.info(msg)
-                        yield record
-                    else:
-                        not_in_range = True
-                        LOGGER.info('The record is not in the datetime range')
-                else:
-                    LOGGER.error('Invalid record detected')
-                    finish = True
-                    break
-                r_index += 1
-            if finish:
-                LOGGER.info('Canceling download : Finish')
-                self.link.write(self.ESC)
-                break
-            elif not_in_range:
-                msg = 'Page is not in the datetime range'
-                LOGGER.info('Canceling download : %s' % msg)
-                self.link.write(self.ESC)
-                break
-            else:
-                if header['Pages'] - 1 == i:
-                    LOGGER.info('Start downloading next page')
-                self.link.write(self.ACK)
-        LOGGER.info('Pages Downloading process was finished')
+            raise BadCRCException('Header CRC check failed.')
+
+        # Send acknowledgment if header CRC is correct
+        self.link.write(self.ACK)
+        
+        try:
+            for i in range(header.number_of_pages):
+                # Not sure if these functions need to be public.
+                self._process_page(i, start_date, stop_date)
+        except (BadCRCException, NotImplementedError) as e:
+            LOGGER.error(f'Error during data processing: {e}')
+            self.link.write(self.ESC)
+            return 
+
+        LOGGER.info('Data dump complete.')
 
     @cached_property
     def archive_period(self):
@@ -285,8 +276,8 @@ class VantagePro2(object):
         '''Returns timezone offset as string.'''
         data = self.read_from_eeprom("14", 3)
         offset, gmt = struct.unpack(b'HB', data)
-        if gmt == 1:
-            return "GMT+%.2f" % (offset / 100)
+        if gmt:
+            return f"GMT+{offset / 100:.2f}"
         else:
             return "Localtime"
 
