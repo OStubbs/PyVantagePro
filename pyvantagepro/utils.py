@@ -107,7 +107,7 @@ def bytes_to_hex(byte):
         hexstr = str(binascii.hexlify(byte))
     data = []
     for i in range(0, len(hexstr), 2):
-        data.append("%s" % hexstr[i:i + 2].upper())
+        data.append(f"{hexstr[i:i + 2].upper()}")
     return ' '.join(data)
 
 
@@ -166,6 +166,7 @@ def binary_to_int(buf, start=0, stop=None):
     return int(buf[::-1][start:(stop or len(buf))][::-1], 2)
 
 def list_to_int(item_list):
+    '''Convert list of type to list of int.'''
     for i,x in enumerate(item_list, start=0):
         try:
             item_list[i] = int(x)
