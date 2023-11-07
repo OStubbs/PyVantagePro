@@ -25,6 +25,7 @@ except:
     pass
 
 REQUIREMENTS = [
+    'progressbar-latest',
     'pylink'
 ]
 
