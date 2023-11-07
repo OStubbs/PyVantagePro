@@ -144,7 +144,7 @@ class LoopDataParserRevB(DataParser):
     real-time data that can be read from the Davis VantagePro2.'''
     # Loop data format (RevB)
     LOOP_FORMAT = (
-        ('LOO', '3s'), ('BarTrend', 'b'), ('PacketType', 'B'),
+        ('LOO', '3s'), ('BarTrend', 'B'), ('PacketType', 'B'),
         ('NextRec', 'H'), ('Barometer', 'H'), ('TempIn', 'h'),
         ('HumIn', 'B'), ('TempOut', 'h'), ('WindSpeed', 'B'),
         ('WindSpeed10Min', 'B'), ('WindDir', 'H'), ('ExtraTemps', '7s'),
@@ -244,7 +244,6 @@ class LoopDataParserRevB(DataParser):
         self['SoilTemps'] = struct.unpack(b'4B', self['SoilTemps'])
         self['LeafWetness'] = struct.unpack(b'4B', self['LeafWetness'])
         self['LeafTemps'] = struct.unpack(b'4B', self['LeafTemps'])
-
         # Inside Alarms bits extraction, only 7 bits are used
         # Convert the byte at position X to its binary representation then to ints
         alarm_in_values = list_to_int(bytes_to_binary(self.raw_bytes[70]))
@@ -264,7 +263,6 @@ class LoopDataParserRevB(DataParser):
             data = self.raw_bytes[74 + i]
             alarm_key = f'AlarmEx{i:02}' 
             alarm_value = list_to_int(bytes_to_binary(data))
-            
             # Index matches position in alarm_value
             self.index_loop_through_data("AlarmExTempHum", alarm_value, alarm_key)
             
