@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+Version 0.3.4
+~~~~~~~~~~~~~
+
+Released on 2023-11-07.
+
+- Added python 3.11 support
+- Use of f-strings
+- Corrected TempIn and TempOut to be signed ints
+- General code readability improvements
+
 Version 0.3.2
 ~~~~~~~~~~~~~
 
