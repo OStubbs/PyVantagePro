@@ -183,12 +183,11 @@ class LoopDataParserRevB(DataParser):
             0: "LowTemp", 
             1: "HighTemp", 
             2: "WindSpeed", 
-            3: "HighHum",
-            4: "10minAvgSpeed",
-            5: "LowDewpoint",
-            6: "HighDewPoint",
-            7: "HighHeat",
-            8: "LowWindChill"
+            3: "10minAvgSpeed",
+            4: "LowDewpoint",
+            5: "HighDewPoint",
+            6: "HighHeat",
+            7: "LowWindChill"
         },
         "AlarmOut73": {
             0: "HighTHSW", 
@@ -310,7 +309,8 @@ class LoopDataParserRevB(DataParser):
     def unpack_time(self, time):
         '''Given a packed time field, unpack and return "HH:MM" string.'''
         # format: HHMM, and space padded on the left.ex: "601" is 6:01 AM
-        return "%02d:%02d" % divmod(time, 100)  # covert to "06:01"
+        hours, minutes = divmod(time, 100)
+        return f"{hours:02d}:{minutes:02d}"  # covert to "06:01"
     
 
 
