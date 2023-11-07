@@ -165,7 +165,14 @@ def binary_to_int(buf, start=0, stop=None):
     '''
     return int(buf[::-1][start:(stop or len(buf))][::-1], 2)
 
-
+def list_to_int(item_list):
+    for i,x in enumerate(item_list, start=0):
+        try:
+            item_list[i] = int(x)
+        except (TypeError, ValueError):
+            pass
+    return item_list
+        
 def csv_to_dict(file_input, delimiter=','):
     '''Deserialize csv to list of dictionaries.'''
     delimiter = to_char(delimiter)
