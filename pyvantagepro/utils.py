@@ -136,7 +136,10 @@ def bytes_to_binary(values):
         if values == 0:
             data = '00000000'
         else:
-            data = ''.join([byte_to_binary(b) for b in values])
+            if type(values) is int:
+                data = ''.join([byte_to_binary(values)])
+            else:
+                data = ''.join([byte_to_binary(b) for b in values])
     else:
         data = ''.join(byte_to_binary(ord(b)) for b in values)
     return data
