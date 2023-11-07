@@ -18,7 +18,7 @@ from array import array
 from .compat import bytes
 from .logger import LOGGER
 from .utils import (cached_property, bytes_to_hex, Dict, bytes_to_binary,
-                    binary_to_int)
+                    binary_to_int, list_to_int)
 
 
 class VantageProCRC(object):
@@ -144,6 +144,61 @@ class LoopDataParserRevB(DataParser):
         ('ForecastIcon', 'B'), ('ForecastRuleNo', 'B'), ('SunRise', 'H'),
         ('SunSet', 'H'), ('EOL', '2s'), ('CRC', 'H'),
     )
+    
+    # Map the binary to alarm attributes
+    # Using a dict with keys make any future adjustments easier over list index
+    type_keys = {
+        "AlarmIn": {
+            0: "FallBarTrend",
+            1: "RisBarTrend",
+            2: "LowTemp",
+            3: "HighTemp",
+            4: "LowHum",
+            5: "HighHum",
+            6: "Time"
+        },
+        "AlarmRain": {
+            0: 'HighRate', 
+            1: '15min', 
+            2: '24hour', 
+            3: 'StormTotal', 
+            4: 'ETDaily'
+        },
+        "AlarmOut72": {
+            0: "LowTemp", 
+            1: "HighTemp", 
+            2: "WindSpeed", 
+            3: "HighHum",
+            4: "10minAvgSpeed",
+            5: "LowDewpoint",
+            6: "HighDewPoint",
+            7: "HighHeat",
+            8: "LowWindChill"
+        },
+        "AlarmOut73": {
+            0: "HighTHSW", 
+            1: "HighSolarRad", 
+            2: "HighUV", 
+            3: "UVDose",
+            4: "UVDoseEnabled"
+        },
+        "AlarmExTempHum": {
+            0: "LowTemp", 
+            1: "HighTemp", 
+            2: "LowHum", 
+            3: "HighHum"
+        },
+        "AlarmSoilLeaf": {
+            0: "LowLeafWet", 
+            1: "HighLeafWet", 
+            2: "LowSoilMois",
+            3: "HighSoilMois", 
+            4: "LowLeafTemp", 
+            5: "HighLeafTemp",
+            6: "LowSoilTemp", 
+            7: "HighSoilTemp"
+        }
+    }
 
     def __init__(self, data, dtime):
         super(LoopDataParserRevB, self).__init__(data, self.LOOP_FORMAT)
@@ -177,62 +232,36 @@ class LoopDataParserRevB(DataParser):
         self['LeafTemps'] = struct.unpack(b'4B', self['LeafTemps'])
 
         # Inside Alarms bits extraction, only 7 bits are used
-        self['AlarmIn'] = bytes_to_binary(self.raw_bytes[70])
-        self['AlarmInFallBarTrend'] = int(self['AlarmIn'][0])
-        self['AlarmInRisBarTrend'] = int(self['AlarmIn'][1])
-        self['AlarmInLowTemp'] = int(self['AlarmIn'][2])
-        self['AlarmInHighTemp'] = int(self['AlarmIn'][3])
-        self['AlarmInLowHum'] = int(self['AlarmIn'][4])
-        self['AlarmInHighHum'] = int(self['AlarmIn'][5])
-        self['AlarmInTime'] = int(self['AlarmIn'][6])
-        del self['AlarmIn']
+        # Convert the byte at position X to its binary representation then to ints
+        alarm_in_values = list_to_int(bytes_to_binary(self.raw_bytes[70]))
         # Rain Alarms bits extraction, only 5 bits are used
-        self['AlarmRain'] = bytes_to_binary(self.raw_bytes[71])
-        self['AlarmRainHighRate'] = int(self['AlarmRain'][0])
-        self['AlarmRain15min'] = int(self['AlarmRain'][1])
-        self['AlarmRain24hour'] = int(self['AlarmRain'][2])
-        self['AlarmRainStormTotal'] = int(self['AlarmRain'][3])
-        self['AlarmRainETDaily'] = int(self['AlarmRain'][4])
-        del self['AlarmRain']
+        alarm_rain_values = list_to_int(bytes_to_binary(self.raw_bytes[71]))
+        alarm_out_72 = list_to_int(bytes_to_binary(self.raw_bytes[72]))
+        alarm_out_73 = list_to_int(bytes_to_binary(self.raw_bytes[73]))
         # Oustide Alarms bits extraction, only 13 bits are used
-        self['AlarmOut'] = bytes_to_binary(self.raw_bytes[72])
-        self['AlarmOutLowTemp'] = int(self['AlarmOut'][0])
-        self['AlarmOutHighTemp'] = int(self['AlarmOut'][1])
-        self['AlarmOutWindSpeed'] = int(self['AlarmOut'][2])
-        self['AlarmOut10minAvgSpeed'] = int(self['AlarmOut'][3])
-        self['AlarmOutLowDewpoint'] = int(self['AlarmOut'][4])
-        self['AlarmOutHighDewPoint'] = int(self['AlarmOut'][5])
-        self['AlarmOutHighHeat'] = int(self['AlarmOut'][6])
-        self['AlarmOutLowWindChill'] = int(self['AlarmOut'][7])
-        self['AlarmOut'] = bytes_to_binary(self.raw_bytes[73])
-        self['AlarmOutHighTHSW'] = int(self['AlarmOut'][0])
-        self['AlarmOutHighSolarRad'] = int(self['AlarmOut'][1])
-        self['AlarmOutHighUV'] = int(self['AlarmOut'][2])
-        self['AlarmOutUVDose'] = int(self['AlarmOut'][3])
-        self['AlarmOutUVDoseEnabled'] = int(self['AlarmOut'][4])
-        del self['AlarmOut']
+        
+        self.index_loop_through_data("AlarmIn", alarm_in_values, alarm_key="AlarmIn")
+        self.index_loop_through_data("AlarmRain", alarm_rain_values, alarm_key="AlarmRain")
+        self.index_loop_through_data("AlarmOut72", alarm_out_72, alarm_key="AlarmOut")
+        self.index_loop_through_data("AlarmOut73", alarm_out_73, alarm_key="AlarmOut")
+
         # AlarmExTempHum bits extraction, only 3 bits are used, but 7 bytes
         for i in range(1, 8):
             data = self.raw_bytes[74 + i]
-            self['AlarmExTempHum'] = bytes_to_binary(data)
-            self['AlarmEx%.2dLowTemp' % i] = int(self['AlarmExTempHum'][0])
-            self['AlarmEx%.2dHighTemp' % i] = int(self['AlarmExTempHum'][1])
-            self['AlarmEx%.2dLowHum' % i] = int(self['AlarmExTempHum'][2])
-            self['AlarmEx%.2dHighHum' % i] = int(self['AlarmExTempHum'][3])
-        del self['AlarmExTempHum']
+            alarm_key = f'AlarmEx{i:02}' 
+            alarm_value = list_to_int(bytes_to_binary(data))
+            
+            # Index matches position in alarm_value
+            self.index_loop_through_data("AlarmExTempHum", alarm_value, alarm_key)
+
         # AlarmSoilLeaf 8bits, 4 bytes
         for i in range(1, 5):
             data = self.raw_bytes[81 + i]
-            self['AlarmSoilLeaf'] = bytes_to_binary(data)
-            self['Alarm%.2dLowLeafWet' % i] = int(self['AlarmSoilLeaf'][0])
-            self['Alarm%.2dHighLeafWet' % i] = int(self['AlarmSoilLeaf'][0])
-            self['Alarm%.2dLowSoilMois' % i] = int(self['AlarmSoilLeaf'][0])
-            self['Alarm%.2dHighSoilMois' % i] = int(self['AlarmSoilLeaf'][0])
-            self['Alarm%.2dLowLeafTemp' % i] = int(self['AlarmSoilLeaf'][0])
-            self['Alarm%.2dHighLeafTemp' % i] = int(self['AlarmSoilLeaf'][0])
-            self['Alarm%.2dLowSoilTemp' % i] = int(self['AlarmSoilLeaf'][0])
-            self['Alarm%.2dHighSoilTemp' % i] = int(self['AlarmSoilLeaf'][0])
-        del self['AlarmSoilLeaf']
+            alarm_key = f'Alarm{i:02d}'  # Format the key once and reuse it
+            alarm_value = int(bytes_to_binary(data)[0])
+            # Convert once, assign multiple times
+            self.loop_through_data("AlarmSoilLeaf", alarm_value, alarm_key)
+
         # delete unused values
         del self['LOO']
         del self['NextRec']
@@ -246,6 +275,14 @@ class LoopDataParserRevB(DataParser):
         self.tuple_to_dict("HumExtra")
         self.tuple_to_dict("LeafWetness")
         self.tuple_to_dict("SoilMoist")
+        
+    def index_loop_through_data(self, type_name, alarm_value, alarm_key):
+        for index, key in self.type_keys[type_name].items():
+            self[f'{alarm_key}{key}'] = alarm_value[index] 
+    
+    def loop_through_data(self, type_name, alarm_value, alarm_key):
+        for index, key in self.type_keys[type_name].items():
+            self[f'{alarm_key}{key}'] = alarm_value 
 
     def unpack_storm_date(self):
         '''Given a packed storm date field, unpack and return date.'''
@@ -259,6 +296,7 @@ class LoopDataParserRevB(DataParser):
         '''Given a packed time field, unpack and return "HH:MM" string.'''
         # format: HHMM, and space padded on the left.ex: "601" is 6:01 AM
         return "%02d:%02d" % divmod(time, 100)  # covert to "06:01"
+    
 
 
 class ArchiveDataParserRevB(DataParser):
