@@ -170,6 +170,8 @@ def binary_to_int(buf, start=0, stop=None):
 
 def list_to_int(item_list):
     '''Convert list of type to list of int.'''
+    if type(item_list) is str:
+        item_list = list(item_list)
     for i,x in enumerate(item_list, start=0):
         try:
             item_list[i] = int(x)
