@@ -98,12 +98,12 @@ class VantagePro2(object):
         self.link.write(self.WAKE_STR)
         ack = self.link.read(len(wait_ack))
         if wait_ack == ack:
-            LOGGER.info("Check ACK: OK (%s)" % (repr(ack)))
+            LOGGER.info(f"Check ACK: OK ({repr(ack)})")
             return True
         #Sometimes we have a 1byte shift from Vantage Pro and that's why wake up doesn't work anymore
         #We just shift another 1byte to be aligned in the serial buffer again.
         self.link.read(1)
-        LOGGER.error("Check ACK: BAD (%s != %s)" % (repr(wait_ack), repr(ack)))
+        LOGGER.error(f"Check ACK: BAD ({repr(wait_ack)} != {repr(ack)})")
         raise NoDeviceException()
 
     @retry(tries=3, delay=0.5)
@@ -116,38 +116,38 @@ class VantagePro2(object):
          :param wait_ack: If `wait_ack` is not None, the function must check
             that acknowledgement is the one expected.
 
-         :param timeout: Define this timeout when reading ACK from link﻿.
+         :param timeout: Define this timeout when reading ACK from link.
          '''
         if is_bytes(data):
-            LOGGER.info("try send : %s" % bytes_to_hex(data))
+            LOGGER.info(f"try send : {bytes_to_hex(data)}")
             self.link.write(data)
         else:
-            LOGGER.info("try send : %s" % data)
-            self.link.write("%s\n" % data)
+            LOGGER.info(f"try send : {data}")
+            self.link.write(f"{data}\n")
         if wait_ack is None:
             return True
         ack = self.link.read(len(wait_ack), timeout=timeout)
         if wait_ack == ack:
-            LOGGER.info("Check ACK: OK (%s)" % (repr(ack)))
+            LOGGER.info(f"Check ACK: OK ({repr(ack)})")
             return True
-        LOGGER.error("Check ACK: BAD (%s != %s)" % (repr(wait_ack), repr(ack)))
+        LOGGER.error(f"Check ACK: BAD ({repr(wait_ack)} != {repr(ack)})")
         raise BadAckException()
 
     @retry(tries=3, delay=1)
     def read_from_eeprom(self, hex_address, size):
         '''Reads from EEPROM the `size` number of bytes starting at the
         `hex_address`. Results are given as hex strings.'''
-        self.link.write("EEBRD %s %.2d\n" % (hex_address, size))
+        self.link.write(f"EEBRD {hex_address} {size:02d}\n")
         ack = self.link.read(len(self.ACK))
         if self.ACK == ack:
-            LOGGER.info("Check ACK: OK (%s)" % (repr(ack)))
+            LOGGER.info(f"Check ACK: OK ({repr(ack)})")
             data = self.link.read(size + 2)  # 2 bytes for CRC
             if VantageProCRC(data).check():
                 return data[:-2]
             else:
                 raise BadCRCException()
         else:
-            msg = "Check ACK: BAD (%s != %s)" % (repr(self.ACK), repr(ack))
+            msg = f"Check ACK: BAD ({repr(self.ACK)} != {repr(ack)})"
             LOGGER.error(msg)
             raise BadAckException()
 
@@ -216,7 +216,7 @@ class VantagePro2(object):
             raise BadCRCException()
         else:
             self.link.write(self.ACK)
-        LOGGER.info('Starting download %d dump pages' % header['Pages'])
+        LOGGER.info(f'Starting download {header["Pages"]} dump pages')
         finish = False
         r_index = 0
         for i in range(header['Pages']):
@@ -227,7 +227,7 @@ class VantagePro2(object):
                 LOGGER.error('Error: %s' % e)
                 finish = True
                 break
-            LOGGER.info('Dump page no %d ' % dump['Index'])
+            LOGGER.info(f'Dump page no {dump["Index"]} ')
             # Get the 5 raw records
             raw_records = dump["Records"]
             # loop through archive records
@@ -249,7 +249,7 @@ class VantagePro2(object):
                 elif r_time <= stop_date:
                     if start_date < r_time:
                         not_in_range = False
-                        msg = "Record-%.4d - Datetime : %s" % (r_index, r_time)
+                        msg = f"Record-{r_index:04d} - Datetime : {r_time}"
                         LOGGER.info(msg)
                         yield record
                     else:
@@ -266,7 +266,7 @@ class VantagePro2(object):
                 break
             elif not_in_range:
                 msg = 'Page is not in the datetime range'
-                LOGGER.info('Canceling download : %s' % msg)
+                LOGGER.info(f'Canceling download : {msg}')
                 self.link.write(self.ESC)
                 break
             else:

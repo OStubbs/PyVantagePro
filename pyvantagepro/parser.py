@@ -63,8 +63,23 @@ class VantageProCRC(object):
     def checksum(self):
         '''Return CRC calc value from raw serial data.'''
         crc = 0
+        
+        # Previous one-liner wasn't great for readability
         for byte in array(str('B'), bytes(self.data)):
-            crc = (self.CRC_TABLE[((crc >> 8) ^ byte)] ^ ((crc & 0xFF) << 8))
+            # Get the upper 8 bits
+            upper_crc = crc >> 8
+
+            # XOR the upper_crc with the current byte to index into the CRC table.
+            table_index = upper_crc ^ byte
+            table_value = self.CRC_TABLE[table_index]
+            # Get the lower 8 bits of the current CRC.
+            lower_crc = crc & 0xFF
+
+            # Shift 8 bits to the left to make space for the new byte.
+            shifted_lower_crc = lower_crc << 8
+
+            # Combine the table value with the shifted lower CRC to get the new CRC value.
+            crc = table_value ^ shifted_lower_crc
         return crc
 
     @cached_property
@@ -94,7 +109,7 @@ class DataParser(Dict):
         self.crc_error = False
         if "CRC" in self.fields:
             self.crc_error = not VantageProCRC(data).check()
-        format_t = str("%s%s" % (order, ''.join(format_t)))
+        format_t = f"{order}{''.join(format_t)}"
         self.struct = struct.Struct(format=format_t)
         # save raw_bytes
         self.raw_bytes = data
@@ -110,12 +125,12 @@ class DataParser(Dict):
     def tuple_to_dict(self, key):
         '''Convert {key<->tuple} to {key1<->value2, key2<->value2 ... }.'''
         for i, value in enumerate(self[key]):
-            self["%s%.2d" % (key, i + 1)] = value
+            self[f"{key}{i + 1:02d}"] = value
         del self[key]
 
     def __unicode__(self):
         name = self.__class__.__name__
-        return "<%s %s>" % (name, self.raw)
+        return f"<{name} {self.raw}>"
 
     def __str__(self):
         return str(self.__unicode__())
@@ -245,22 +260,22 @@ class LoopDataParserRevB(DataParser):
         self.index_loop_through_data("AlarmOut72", alarm_out_72, alarm_key="AlarmOut")
         self.index_loop_through_data("AlarmOut73", alarm_out_73, alarm_key="AlarmOut")
 
-        # AlarmExTempHum bits extraction, only 3 bits are used, but 7 bytes
         for i in range(1, 8):
+            # AlarmExTempHum bits extraction, only 3 bits are used, but 7 bytes
             data = self.raw_bytes[74 + i]
             alarm_key = f'AlarmEx{i:02}' 
             alarm_value = list_to_int(bytes_to_binary(data))
             
             # Index matches position in alarm_value
             self.index_loop_through_data("AlarmExTempHum", alarm_value, alarm_key)
-
-        # AlarmSoilLeaf 8bits, 4 bytes
-        for i in range(1, 5):
-            data = self.raw_bytes[81 + i]
-            alarm_key = f'Alarm{i:02d}'  # Format the key once and reuse it
-            alarm_value = int(bytes_to_binary(data)[0])
-            # Convert once, assign multiple times
-            self.loop_through_data("AlarmSoilLeaf", alarm_value, alarm_key)
+            
+            if i <= 4:
+                # AlarmSoilLeaf 8bits, 4 bytes
+                data = self.raw_bytes[81 + i]
+                alarm_key = f'Alarm{i:02d}'  # Format the key once and reuse it
+                alarm_value = int(bytes_to_binary(data)[0])
+                # Convert once, assign multiple times
+                self.loop_through_data("AlarmSoilLeaf", alarm_value, alarm_key)
 
         # delete unused values
         del self['LOO']
@@ -290,8 +305,8 @@ class LoopDataParserRevB(DataParser):
         year = binary_to_int(date, 0, 7) + 2000
         day = binary_to_int(date, 7, 12)
         month = binary_to_int(date, 12, 16)
-        return "%s-%s-%s" % (year, month, day)
-
+        return f"{year}-{month}-{day}"
+    
     def unpack_time(self, time):
         '''Given a packed time field, unpack and return "HH:MM" string.'''
         # format: HHMM, and space padded on the left.ex: "601" is 6:01 AM
